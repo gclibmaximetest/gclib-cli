@@ -1,0 +1,23 @@
+{
+  "version": "1",
+  "items": [
+    {
+      "name": "code-reviewer",
+      "type": "agent",
+      "version": "1.0.0",
+      "installedAt": "2026-03-14T16:23:17.305Z"
+    },
+    {
+      "name": "typescript-best-practices",
+      "type": "skill",
+      "version": "1.2.0",
+      "installedAt": "2026-03-14T16:23:17.687Z"
+    },
+    {
+      "name": "company-standards",
+      "type": "instruction",
+      "version": "1.0.0",
+      "installedAt": "2026-03-14T16:23:18.055Z"
+    }
+  ]
+}

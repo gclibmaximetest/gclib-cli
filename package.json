@@ -1,0 +1,27 @@
+{
+  "name": "gclib",
+  "version": "1.0.0",
+  "description": "Internal CLI for managing GitHub Copilot configuration files",
+  "bin": {
+    "gclib": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src/",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.3.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
