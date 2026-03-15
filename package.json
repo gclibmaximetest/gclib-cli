@@ -1,6 +1,6 @@
 {
   "name": "gclib",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Internal CLI for managing GitHub Copilot configuration files",
   "bin": {
     "gclib": "./dist/index.js"
