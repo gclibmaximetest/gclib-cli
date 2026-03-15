@@ -60,7 +60,7 @@ export function registerPublishCommand(program: Command): void {
         tags,
         version: '1.0.0',
         files: [fileName],
-        target: `.github/copilot/${type}s/`,
+        target: `.github/${type}s/`,
       }
 
       const scaffoldDir = join(process.cwd(), 'gclib-registry-scaffold', type + 's', name)

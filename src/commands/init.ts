@@ -1,101 +1,101 @@
-import type { Command } from 'commander'
-import { checkbox, select } from '@inquirer/prompts'
-import { ui } from '../lib/ui.js'
-import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchIndex, fetchFile } from '../lib/registry.js'
-import { installItem } from '../lib/installer.js'
-import { readLockfile, writeLockfile } from '../lib/lockfile.js'
-import type { IndexItem, Manifest } from '../types.js'
+import type { Command } from "commander";
+import { checkbox, select } from "@inquirer/prompts";
+import { ui } from "../lib/ui.js";
+import { checkPrerequisites, getGithubToken } from "../lib/auth.js";
+import { fetchIndex, fetchFile } from "../lib/registry.js";
+import { installItem } from "../lib/installer.js";
+import { readLockfile, writeLockfile } from "../lib/lockfile.js";
+import type { IndexItem, Manifest } from "../types.js";
 
 export function registerInitCommand(program: Command): void {
-  program
-    .command('init')
-    .description('Interactively pick and install Copilot config from the registry')
-    .action(async () => {
-      checkPrerequisites()
-      const token = getGithubToken()
-      const cwd = process.cwd()
+	program
+		.command("init")
+		.description("Interactively pick and install agents, skills, and instructions from the registry")
+		.action(async () => {
+			checkPrerequisites();
+			const token = getGithubToken();
+			const cwd = process.cwd();
 
-      console.log(ui.title('gclib init'))
+			console.log(ui.title("gclib init"));
 
-      const index = await fetchIndex(token)
-      if (index.items.length === 0) {
-        console.log(ui.info('No items in the registry.'))
-        console.log(ui.outro('Done.'))
-        return
-      }
+			const index = await fetchIndex(token);
+			if (index.items.length === 0) {
+				console.log(ui.info("No items in the registry."));
+				console.log(ui.outro("Done."));
+				return;
+			}
 
-      const choices = index.items.map((i) => ({
-        name: `${i.name} ${ui.dim(`(${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ''}`.trim(),
-        value: i.name,
-      }))
+			const choices = index.items.map((i) => ({
+				name: `${i.name} ${ui.dim(`(${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ""}`.trim(),
+				value: i.name,
+			}));
 
-      let selected: string[]
-      try {
-        selected = await checkbox({
-          message: 'Select items to install',
-          choices,
-          required: false,
-        })
-      } catch {
-        console.log(ui.dim('Cancelled.'))
-        process.exit(0)
-      }
+			let selected: string[];
+			try {
+				selected = await checkbox({
+					message: "Select items to install",
+					choices,
+					required: false,
+				});
+			} catch {
+				console.log(ui.dim("Cancelled."));
+				process.exit(0);
+			}
 
-      if (!selected?.length) {
-        console.log(ui.dim('No items selected.'))
-        process.exit(0)
-      }
+			if (!selected?.length) {
+				console.log(ui.dim("No items selected."));
+				process.exit(0);
+			}
 
-      const existingLock = readLockfile(cwd)
-      const lockfile = existingLock ?? { version: '1', items: [] }
+			const existingLock = readLockfile(cwd);
+			const lockfile = existingLock ?? { version: "1", items: [] };
 
-      for (const name of selected) {
-        const item = index.items.find((i) => i.name === name) as IndexItem
-        const manifestPath = `${item.path}/manifest.json`
-        const manifestRaw = await fetchFile(token, manifestPath)
-        const manifest = JSON.parse(manifestRaw) as Manifest
+			for (const name of selected) {
+				const item = index.items.find((i) => i.name === name) as IndexItem;
+				const manifestPath = `${item.path}/manifest.json`;
+				const manifestRaw = await fetchFile(token, manifestPath);
+				const manifest = JSON.parse(manifestRaw) as Manifest;
 
-        const fileContents = new Map<string, string>()
-        for (const file of manifest.files) {
-          const content = await fetchFile(token, `${item.path}/${file}`)
-          fileContents.set(file, content)
-        }
+				const fileContents = new Map<string, string>();
+				for (const file of manifest.files) {
+					const content = await fetchFile(token, `${item.path}/${file}`);
+					fileContents.set(file, content);
+				}
 
-        const { written, skipped } = await installItem(cwd, manifest, fileContents, {
-          cwd,
-          onConflict: async (filePath) => {
-            try {
-              const action = await select({
-                message: `File exists: ${ui.path(filePath)}`,
-                choices: [
-                  { value: 'overwrite', name: 'Overwrite' },
-                  { value: 'skip', name: 'Skip' },
-                  { value: 'merge', name: 'Merge (append below separator)' },
-                ],
-              })
-              return action as 'overwrite' | 'skip' | 'merge'
-            } catch {
-              return 'skip'
-            }
-          },
-        })
+				const { written, skipped } = await installItem(cwd, manifest, fileContents, {
+					cwd,
+					onConflict: async (filePath) => {
+						try {
+							const action = await select({
+								message: `File exists: ${ui.path(filePath)}`,
+								choices: [
+									{ value: "overwrite", name: "Overwrite" },
+									{ value: "skip", name: "Skip" },
+									{ value: "merge", name: "Merge (append below separator)" },
+								],
+							});
+							return action as "overwrite" | "skip" | "merge";
+						} catch {
+							return "skip";
+						}
+					},
+				});
 
-        if (written.length || skipped.length) {
-          const existing = lockfile.items.filter((i) => i.name !== item.name)
-          lockfile.items = [
-            ...existing,
-            {
-              name: item.name,
-              type: item.type,
-              version: item.version,
-              installedAt: new Date().toISOString(),
-            },
-          ]
-        }
-      }
+				if (written.length || skipped.length) {
+					const existing = lockfile.items.filter((i) => i.name !== item.name);
+					lockfile.items = [
+						...existing,
+						{
+							name: item.name,
+							type: item.type,
+							version: item.version,
+							installedAt: new Date().toISOString(),
+						},
+					];
+				}
+			}
 
-      writeLockfile(cwd, lockfile)
-      console.log(ui.outro(`Installed ${selected.length} item(s).`))
-    })
+			writeLockfile(cwd, lockfile);
+			console.log(ui.outro(`Installed ${selected.length} item(s).`));
+		});
 }

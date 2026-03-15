@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
+import { getLocalVersion, runVersionCheck } from './lib/versionCheck.js'
 import { registerListCommand } from './commands/list.js'
 import { registerAddCommand } from './commands/add.js'
 import { registerInitCommand } from './commands/init.js'
@@ -13,7 +14,7 @@ const program = new Command()
 program
   .name('gclib')
   .description('Internal CLI for managing GitHub Copilot configuration files')
-  .version('1.0.0')
+  .version(getLocalVersion())
 
 registerListCommand(program)
 registerAddCommand(program)
@@ -22,4 +23,7 @@ registerSyncCommand(program)
 registerStatusCommand(program)
 registerPublishCommand(program)
 
-program.parse()
+;(async () => {
+  await runVersionCheck()
+  program.parse()
+})()

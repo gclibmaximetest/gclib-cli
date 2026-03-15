@@ -2,6 +2,7 @@
   "name": "gclib",
   "version": "1.0.0",
   "description": "Internal CLI for managing GitHub Copilot configuration files",
+  "repository": "https://github.com/gclibmaximetest/gclib-cli",
   "bin": {
     "gclib": "./dist/index.js"
   },
