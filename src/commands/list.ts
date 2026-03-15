@@ -8,7 +8,7 @@ export function registerListCommand(program: Command): void {
   program
     .command('list')
     .description('Browse all available items in the registry')
-    .option('-t, --type <type>', 'Filter by type: agent, skill, instruction')
+    .option('-t, --type <type>', 'Filter by type: agent, skill, instruction, prompt, hook')
     .option('--tag <tag>', 'Filter by tag (can be repeated)', (v: string, acc: string[] | undefined) => {
       const list = acc ?? []
       list.push(v)
@@ -23,7 +23,7 @@ export function registerListCommand(program: Command): void {
 
       if (options.type) {
         const type = options.type as RegistryItemType
-        if (['agent', 'skill', 'instruction'].includes(type)) {
+        if (['agent', 'skill', 'instruction', 'prompt', 'hook'].includes(type)) {
           items = items.filter((i) => i.type === type)
         }
       }

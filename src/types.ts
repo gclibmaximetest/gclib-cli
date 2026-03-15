@@ -1,5 +1,5 @@
-/** Registry item type. */
-export type RegistryItemType = 'agent' | 'skill' | 'instruction'
+/** Registry item type (matches .github folder names). */
+export type RegistryItemType = 'agent' | 'skill' | 'instruction' | 'prompt' | 'hook'
 
 /** Per-item manifest in the registry. */
 export interface Manifest {
