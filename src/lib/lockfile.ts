@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import type { Lockfile, LockfileItem } from '../types.js'
+import type { Lockfile, LockfileItem, RegistryPlatform } from '../types.js'
 
 const LOCKFILE_NAME = 'gclib.lock.json'
 
@@ -32,19 +32,21 @@ export function upsertLockfileItem(
     version: '1',
     items: [],
   }
-  const items = existing.items.filter((i) => i.name !== item.name)
+  const items = existing.items.filter(
+    (i) => !(i.name === item.name && i.platform === item.platform)
+  )
   items.push(item)
   const next: Lockfile = { ...existing, items }
   writeLockfile(cwd, next)
   return next
 }
 
-export function removeLockfileItem(cwd: string, name: string): Lockfile {
+export function removeLockfileItem(cwd: string, name: string, platform: RegistryPlatform): Lockfile {
   const existing = readLockfile(cwd)
   if (!existing) {
     return { version: '1', items: [] }
   }
-  const items = existing.items.filter((i) => i.name !== name)
+  const items = existing.items.filter((i) => !(i.name === name && i.platform === platform))
   const next: Lockfile = { ...existing, items }
   writeLockfile(cwd, next)
   return next

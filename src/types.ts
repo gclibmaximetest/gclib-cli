@@ -50,6 +50,7 @@ export interface IndexItem extends RawIndexItem {
 export interface LockfileItem {
   name: string
   type: RegistryItemType
+  platform: RegistryPlatform
   version: string
   installedAt: string
 }

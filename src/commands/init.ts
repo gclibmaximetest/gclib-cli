@@ -82,18 +82,21 @@ export function registerInitCommand(program: Command): void {
 					},
 				});
 
-				if (written.length || skipped.length) {
-					const existing = lockfile.items.filter((i) => i.name !== item.name);
-					lockfile.items = [
-						...existing,
-						{
-							name: item.name,
-							type: item.type,
-							version: item.version,
-							installedAt: new Date().toISOString(),
-						},
-					];
-				}
+			if (written.length || skipped.length) {
+				const existing = lockfile.items.filter(
+					(i) => !(i.name === item.name && i.platform === item.platform)
+				);
+				lockfile.items = [
+					...existing,
+					{
+						name: item.name,
+						type: item.type,
+						platform: item.platform,
+						version: item.version,
+						installedAt: new Date().toISOString(),
+					},
+				];
+			}
 			}
 
 			writeLockfile(cwd, lockfile);

@@ -24,10 +24,18 @@ export function registerSyncCommand(program: Command): void {
       }
 
       const allItems = await fetchItems(token)
-      const indexByName = new Map(allItems.map((i) => [i.name, i]))
+      const indexByKey = new Map(allItems.map((i) => [`${i.platform}::${i.name}`, i]))
 
-      const outdated = lockfile.items.filter((item) => {
-        const latest = indexByName.get(item.name)
+      // Migrate lock items missing platform by matching against the registry index
+      const migratedItems = lockfile.items.map((item) => {
+        if (item.platform) return item
+        const match = allItems.find((i) => i.name === item.name && i.type === item.type)
+        return match ? { ...item, platform: match.platform } : item
+      })
+
+      const outdated = migratedItems.filter((item) => {
+        if (!item.platform) return false
+        const latest = indexByKey.get(`${item.platform}::${item.name}`)
         return latest && latest.version !== item.version
       })
 
@@ -54,7 +62,7 @@ export function registerSyncCommand(program: Command): void {
       }
 
       for (const item of outdated) {
-        const latest = indexByName.get(item.name)!
+        const latest = indexByKey.get(`${item.platform}::${item.name}`)!
         const manifestPath = `${latest.path}/manifest.json`
         const manifestRaw = await fetchFile(token, manifestPath)
         const manifest = JSON.parse(manifestRaw) as Manifest
@@ -72,6 +80,7 @@ export function registerSyncCommand(program: Command): void {
         upsertLockfileItem(cwd, {
           name: latest.name,
           type: latest.type,
+          platform: latest.platform,
           version: latest.version,
           installedAt: new Date().toISOString(),
         })

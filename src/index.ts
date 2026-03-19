@@ -8,6 +8,7 @@ import { registerInitCommand } from './commands/init.js'
 import { registerSyncCommand } from './commands/sync.js'
 import { registerStatusCommand } from './commands/status.js'
 import { registerPublishCommand } from './commands/publish.js'
+import { registerUpdateCommand } from './commands/update.js'
 
 const program = new Command()
 
@@ -22,6 +23,7 @@ registerInitCommand(program)
 registerSyncCommand(program)
 registerStatusCommand(program)
 registerPublishCommand(program)
+registerUpdateCommand(program)
 
 ;(async () => {
   await runVersionCheck()

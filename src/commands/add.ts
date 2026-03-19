@@ -64,6 +64,7 @@ export function registerAddCommand(program: Command): void {
         upsertLockfileItem(cwd, {
           name: item.name,
           type: item.type,
+          platform: item.platform,
           version: item.version,
           installedAt: new Date().toISOString(),
         })
