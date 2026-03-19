@@ -14,11 +14,14 @@ export interface InstallOptions {
   ) => Promise<'overwrite' | 'skip' | 'merge'>
 }
 
-/** Normalize install target: .github/copilot/… → .github/… (new format has no copilot segment). */
+/**
+ * Normalize legacy install targets:
+ * - .github/copilot/… → .github/… (old Copilot path format)
+ */
 function normalizeTarget(target: string): string {
-  const prefix = '.github/copilot/'
-  if (target === prefix || target.startsWith(prefix)) {
-    return `.github/${target.slice(prefix.length)}`
+  const legacyPrefix = '.github/copilot/'
+  if (target === legacyPrefix || target.startsWith(legacyPrefix)) {
+    return `.github/${target.slice(legacyPrefix.length)}`
   }
   return target
 }
@@ -30,7 +33,7 @@ export async function installItem(
   options: InstallOptions
 ): Promise<{ written: string[]; skipped: string[] }> {
   const baseTarget = normalizeTarget(manifest.target)
-  // Skills must live under .github/skills/<name>/SKILL.md
+  // Skills live in a named subfolder: <target>/<name>/SKILL.md
   const targetDir =
     manifest.type === 'skill'
       ? join(cwd, baseTarget, manifest.name)

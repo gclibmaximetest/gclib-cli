@@ -1,10 +1,10 @@
 import type { Command } from 'commander'
 import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchIndex, fetchFile } from '../lib/registry.js'
+import { fetchItems, fetchFile } from '../lib/registry.js'
 import { installItem } from '../lib/installer.js'
 import { upsertLockfileItem } from '../lib/lockfile.js'
-import type { Manifest } from '../types.js'
+import type { Manifest, RegistryPlatform } from '../types.js'
 
 export function registerAddCommand(program: Command): void {
   program
@@ -12,19 +12,37 @@ export function registerAddCommand(program: Command): void {
     .description('Add a specific item from the registry by name')
     .option('-o, --overwrite', 'Overwrite existing files')
     .option('-s, --skip', 'Skip existing files')
-    .action(async (name: string, options: { overwrite?: boolean; skip?: boolean }) => {
+    .option('-p, --platform <platform>', 'Disambiguate by platform when the same name exists on multiple platforms: githubcopilot, claudecode')
+    .action(async (name: string, options: { overwrite?: boolean; skip?: boolean; platform?: string }) => {
       checkPrerequisites()
       const token = getGithubToken()
       const cwd = process.cwd()
 
-      const index = await fetchIndex(token)
-      const item = index.items.find(
+      const items = await fetchItems(token)
+      let matches = items.filter(
         (i) => i.name.toLowerCase() === name.toLowerCase()
       )
-      if (!item) {
+
+      if (options.platform) {
+        const platform = options.platform as RegistryPlatform
+        matches = matches.filter((i) => i.platform === platform)
+      }
+
+      if (matches.length === 0) {
         console.error(ui.error(`Item not found: ${name}`))
         process.exit(1)
       }
+
+      if (matches.length > 1) {
+        console.error(
+          ui.error(
+            `Multiple items named "${name}" found (${matches.map((i) => i.platform).join(', ')}). Use --platform to specify one.`
+          )
+        )
+        process.exit(1)
+      }
+
+      const item = matches[0]!
 
       const manifestPath = `${item.path}/manifest.json`
       const manifestRaw = await fetchFile(token, manifestPath)

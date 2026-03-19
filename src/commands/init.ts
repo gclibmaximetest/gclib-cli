@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { checkbox, select } from "@inquirer/prompts";
 import { ui } from "../lib/ui.js";
 import { checkPrerequisites, getGithubToken } from "../lib/auth.js";
-import { fetchIndex, fetchFile } from "../lib/registry.js";
+import { fetchItems, fetchFile } from "../lib/registry.js";
 import { installItem } from "../lib/installer.js";
 import { readLockfile, writeLockfile } from "../lib/lockfile.js";
 import type { IndexItem, Manifest } from "../types.js";
@@ -18,17 +18,17 @@ export function registerInitCommand(program: Command): void {
 
 			console.log(ui.title("gclib init"));
 
-			const index = await fetchIndex(token);
-			if (index.items.length === 0) {
+			const index = await fetchItems(token);
+			if (index.length === 0) {
 				console.log(ui.info("No items in the registry."));
 				console.log(ui.outro("Done."));
 				return;
 			}
 
-			const choices = index.items.map((i) => ({
-				name: `${i.name} ${ui.dim(`(${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ""}`.trim(),
-				value: i.name,
-			}));
+		const choices = index.map((i) => ({
+        name: `${i.name} ${ui.dim(`(${i.platform}/${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ""}`.trim(),
+        value: `${i.platform}::${i.name}`,
+      }));
 
 			let selected: string[];
 			try {
@@ -50,8 +50,9 @@ export function registerInitCommand(program: Command): void {
 			const existingLock = readLockfile(cwd);
 			const lockfile = existingLock ?? { version: "1", items: [] };
 
-			for (const name of selected) {
-				const item = index.items.find((i) => i.name === name) as IndexItem;
+		for (const key of selected) {
+        const [platform, name] = key.split('::') as [string, string]
+        const item = index.find((i) => i.platform === platform && i.name === name) as IndexItem;
 				const manifestPath = `${item.path}/manifest.json`;
 				const manifestRaw = await fetchFile(token, manifestPath);
 				const manifest = JSON.parse(manifestRaw) as Manifest;

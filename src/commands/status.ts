@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchIndex } from '../lib/registry.js'
+import { fetchItems } from '../lib/registry.js'
 import { readLockfile } from '../lib/lockfile.js'
 
 export function registerStatusCommand(program: Command): void {
@@ -19,19 +19,20 @@ export function registerStatusCommand(program: Command): void {
         return
       }
 
-      const index = await fetchIndex(token)
-      const indexByName = new Map(index.items.map((i) => [i.name, i]))
+      const allItems = await fetchItems(token)
+      const indexByName = new Map(allItems.map((i) => [i.name, i]))
 
       console.log(ui.title('Status'))
       console.log(
-        `  ${ui.tableHeader('Name'.padEnd(26))} ${ui.tableHeader('Type'.padEnd(11))} ${ui.tableHeader('Installed'.padEnd(10))} ${ui.tableHeader('Latest'.padEnd(10))} ${ui.tableHeader('Status')}`
+        `  ${ui.tableHeader('Name'.padEnd(26))} ${ui.tableHeader('Type'.padEnd(22))} ${ui.tableHeader('Installed'.padEnd(10))} ${ui.tableHeader('Latest'.padEnd(10))} ${ui.tableHeader('Status')}`
       )
-      console.log(ui.dim('  ' + '-'.repeat(63)))
+      console.log(ui.dim('  ' + '-'.repeat(75)))
 
       for (const item of lockfile.items) {
         const latest = indexByName.get(item.name)
         const namePad = item.name.padEnd(26)
-        const typePad = item.type.padEnd(11)
+        const platformType = latest ? `${latest.platform}/${item.type}` : item.type
+        const typePad = platformType.padEnd(22)
         const instPad = item.version.padEnd(10)
         const latestVer = latest?.version ?? '—'
         const latestPad = latestVer.padEnd(10)

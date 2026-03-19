@@ -2,7 +2,7 @@ import type { Command } from 'commander'
 import { confirm } from '@inquirer/prompts'
 import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchIndex, fetchFile } from '../lib/registry.js'
+import { fetchItems, fetchFile } from '../lib/registry.js'
 import { installItem } from '../lib/installer.js'
 import { readLockfile, upsertLockfileItem } from '../lib/lockfile.js'
 import type { Manifest } from '../types.js'
@@ -23,8 +23,8 @@ export function registerSyncCommand(program: Command): void {
         return
       }
 
-      const index = await fetchIndex(token)
-      const indexByName = new Map(index.items.map((i) => [i.name, i]))
+      const allItems = await fetchItems(token)
+      const indexByName = new Map(allItems.map((i) => [i.name, i]))
 
       const outdated = lockfile.items.filter((item) => {
         const latest = indexByName.get(item.name)

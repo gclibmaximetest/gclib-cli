@@ -1,5 +1,14 @@
-/** Registry item type (matches .github folder names). */
-export type RegistryItemType = 'agent' | 'skill' | 'instruction' | 'prompt' | 'hook'
+/** Registry platform. */
+export type RegistryPlatform = 'githubcopilot' | 'claudecode'
+
+/** GitHub Copilot item types. */
+export type GithubCopilotItemType = 'agent' | 'skill' | 'instruction' | 'prompt' | 'hook'
+
+/** Claude Code item types. */
+export type ClaudeCodeItemType = 'agent' | 'skill' | 'command' | 'memory'
+
+/** All registry item types across both platforms. */
+export type RegistryItemType = GithubCopilotItemType | ClaudeCodeItemType
 
 /** Per-item manifest in the registry. */
 export interface Manifest {
@@ -10,23 +19,31 @@ export interface Manifest {
   version: string
   files: string[]
   target: string
+  authors: string[]
 }
 
-/** Entry in the registry root index.json. */
-export interface IndexItem {
+/** An item as it appears inside the platform arrays of index.json (no platform field). */
+export interface RawIndexItem {
   name: string
   type: RegistryItemType
   description: string
   tags: string[]
   version: string
+  authors: string[]
   path: string
 }
 
-/** Registry root index.json. */
+/** index.json root shape: separate arrays per platform. */
 export interface RegistryIndex {
   version: string
   updatedAt: string
-  items: IndexItem[]
+  githubcopilot: RawIndexItem[]
+  claudecode: RawIndexItem[]
+}
+
+/** Normalised item with platform injected — used everywhere in the CLI after fetching. */
+export interface IndexItem extends RawIndexItem {
+  platform: RegistryPlatform
 }
 
 /** Locked item in gclib.lock.json. */

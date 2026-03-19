@@ -1,29 +1,37 @@
 import type { Command } from 'commander'
 import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchIndex } from '../lib/registry.js'
-import type { IndexItem, RegistryItemType } from '../types.js'
+import { fetchItems } from '../lib/registry.js'
+import type { IndexItem, RegistryItemType, RegistryPlatform } from '../types.js'
+
+const ALL_TYPES: RegistryItemType[] = ['agent', 'skill', 'instruction', 'prompt', 'hook', 'command', 'memory']
 
 export function registerListCommand(program: Command): void {
   program
     .command('list')
     .description('Browse all available items in the registry')
-    .option('-t, --type <type>', 'Filter by type: agent, skill, instruction, prompt, hook')
+    .option('-p, --platform <platform>', 'Filter by platform: githubcopilot, claudecode')
+    .option('-t, --type <type>', 'Filter by type: agent, skill, instruction, prompt, hook, command, memory')
     .option('--tag <tag>', 'Filter by tag (can be repeated)', (v: string, acc: string[] | undefined) => {
       const list = acc ?? []
       list.push(v)
       return list
     }, [] as string[])
-    .action(async (options: { type?: string; tag?: string[] }) => {
+    .action(async (options: { platform?: string; type?: string; tag?: string[] }) => {
       checkPrerequisites()
       const token = getGithubToken()
-      const index = await fetchIndex(token)
+      let items: IndexItem[] = await fetchItems(token)
 
-      let items: IndexItem[] = index.items
+      if (options.platform) {
+        const platform = options.platform as RegistryPlatform
+        if (['githubcopilot', 'claudecode'].includes(platform)) {
+          items = items.filter((i) => i.platform === platform)
+        }
+      }
 
       if (options.type) {
         const type = options.type as RegistryItemType
-        if (['agent', 'skill', 'instruction', 'prompt', 'hook'].includes(type)) {
+        if (ALL_TYPES.includes(type)) {
           items = items.filter((i) => i.type === type)
         }
       }
@@ -42,7 +50,7 @@ export function registerListCommand(program: Command): void {
 
       console.log(ui.title('Registry'))
       for (const item of items) {
-        console.log(`  ${ui.bold(item.name)} ${ui.dim(`(${item.type})`)} — ${item.description}`)
+        console.log(`  ${ui.bold(item.name)} ${ui.dim(`(${item.platform}/${item.type})`)} — ${item.description}`)
         if (item.tags.length) {
           console.log(ui.dim(`    tags: ${item.tags.join(', ')}`))
         }

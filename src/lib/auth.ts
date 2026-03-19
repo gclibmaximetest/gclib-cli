@@ -11,6 +11,14 @@ export function getGithubToken(): string {
   }
 }
 
+export function getGithubUsername(): string {
+  try {
+    return execSync('gh api user --jq .login', { encoding: 'utf-8' }).trim()
+  } catch {
+    return ''
+  }
+}
+
 export function checkPrerequisites(): void {
   try {
     execSync('gh auth status', { stdio: 'ignore' })
