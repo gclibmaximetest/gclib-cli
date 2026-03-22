@@ -1,10 +1,10 @@
 import type { Command } from 'commander'
 import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
-import { fetchItems, fetchFile } from '../lib/registry.js'
-import { installItem } from '../lib/installer.js'
+import { fetchItems } from '../lib/registry.js'
+import { installFromRegistryPath } from '../lib/registryInstall.js'
 import { upsertLockfileItem } from '../lib/lockfile.js'
-import type { Manifest, RegistryPlatform } from '../types.js'
+import type { RegistryPlatform } from '../types.js'
 
 export function registerAddCommand(program: Command): void {
   program
@@ -44,36 +44,52 @@ export function registerAddCommand(program: Command): void {
 
       const item = matches[0]!
 
-      const manifestPath = `${item.path}/manifest.json`
-      const manifestRaw = await fetchFile(token, manifestPath)
-      const manifest = JSON.parse(manifestRaw) as Manifest
+      const conflictMode = options.overwrite ? 'overwrite' : options.skip ? 'skip' : 'overwrite'
+      const installOpts = { cwd, conflictMode } as const
 
-      const fileContents = new Map<string, string>()
-      for (const file of manifest.files) {
-        const content = await fetchFile(token, `${item.path}/${file}`)
-        fileContents.set(file, content)
+      const pathsToInstall =
+        item.type === 'collection' ? item.entries : [item.path]
+
+      const collectionContext =
+        item.type === 'collection' ? { collectionName: item.name } : undefined
+
+      let anyCollectionMemberWritten = false
+
+      for (const registryPath of pathsToInstall) {
+        const { written, skipped, name, type, platform, version } = await installFromRegistryPath(
+          token,
+          cwd,
+          registryPath,
+          installOpts,
+          collectionContext
+        )
+
+        if (written.length) {
+          if (item.type === 'collection') anyCollectionMemberWritten = true
+          upsertLockfileItem(cwd, {
+            name,
+            type,
+            platform,
+            version,
+            installedAt: new Date().toISOString(),
+          })
+          console.log(ui.success(`Installed ${ui.bold(name)} ${ui.dim(`(${version})`)}`))
+          written.forEach((p) => console.log(ui.dim('  ') + ui.path(p)))
+        }
+        if (skipped.length) {
+          console.log(ui.dim('Skipped (already exist):'))
+          skipped.forEach((p) => console.log(ui.dim('  ') + p))
+        }
       }
 
-      const conflictMode = options.overwrite ? 'overwrite' : options.skip ? 'skip' : 'overwrite'
-      const { written, skipped } = await installItem(cwd, manifest, fileContents, {
-        cwd,
-        conflictMode,
-      })
-
-      if (written.length) {
+      if (item.type === 'collection' && anyCollectionMemberWritten) {
         upsertLockfileItem(cwd, {
           name: item.name,
-          type: item.type,
-          platform: item.platform,
+          type: 'collection',
+          platform: 'collection',
           version: item.version,
           installedAt: new Date().toISOString(),
         })
-        console.log(ui.success(`Installed ${ui.bold(item.name)} ${ui.dim(`(${item.version})`)}`))
-        written.forEach((p) => console.log(ui.dim('  ') + ui.path(p)))
-      }
-      if (skipped.length) {
-        console.log(ui.dim('Skipped (already exist):'))
-        skipped.forEach((p) => console.log(ui.dim('  ') + p))
       }
     })
 }

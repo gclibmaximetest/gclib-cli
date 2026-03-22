@@ -4,6 +4,48 @@ import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
 import { fetchItems } from '../lib/registry.js'
 import { readLockfile } from '../lib/lockfile.js'
 
+const NAME_W = 26
+const TYPE_W = 14
+const VER_W = 10
+
+/** Split a long name across lines; prefer breaking after `-` within the column width. */
+function wrapNameForTable(name: string): string[] {
+  if (name.length <= NAME_W) return [name]
+  const lines: string[] = []
+  let rest = name
+  while (rest.length > NAME_W) {
+    const slice = rest.slice(0, NAME_W)
+    const hyphenAt = slice.lastIndexOf('-')
+    const cut = hyphenAt > 0 ? hyphenAt + 1 : NAME_W
+    lines.push(rest.slice(0, cut))
+    rest = rest.slice(cut)
+  }
+  if (rest.length) lines.push(rest)
+  return lines
+}
+
+function printStatusTableRow(
+  name: string,
+  type: string,
+  inst: string,
+  latest: string,
+  status: string
+): void {
+  const nameLines = wrapNameForTable(name)
+  const typePad = type.padEnd(TYPE_W)
+  const instPad = inst.padEnd(VER_W)
+  const latestPad = latest.padEnd(VER_W)
+  const blankMid = `${''.padEnd(TYPE_W)} ${''.padEnd(VER_W)} ${''.padEnd(VER_W)} `
+  for (let i = 0; i < nameLines.length; i++) {
+    const namePad = nameLines[i]!.padEnd(NAME_W)
+    if (i === 0) {
+      console.log(`  ${namePad} ${typePad} ${instPad} ${latestPad} ${status}`)
+    } else {
+      console.log(`  ${namePad} ${blankMid}`)
+    }
+  }
+}
+
 export function registerStatusCommand(program: Command): void {
   program
     .command('status')
@@ -29,9 +71,11 @@ export function registerStatusCommand(program: Command): void {
         return match ? { ...item, platform: match.platform } : item
       })
 
-      const platforms = ['githubcopilot', 'claudecode'] as const
-      const header = `  ${ui.tableHeader('Name'.padEnd(26))} ${ui.tableHeader('Type'.padEnd(14))} ${ui.tableHeader('Installed'.padEnd(10))} ${ui.tableHeader('Latest'.padEnd(10))} ${ui.tableHeader('Status')}`
-      const divider = ui.dim('  ' + '-'.repeat(67))
+      const platforms = ['githubcopilot', 'claudecode', 'collection'] as const
+      const header = `  ${ui.tableHeader('Name'.padEnd(NAME_W))} ${ui.tableHeader('Type'.padEnd(TYPE_W))} ${ui.tableHeader('Installed'.padEnd(VER_W))} ${ui.tableHeader('Latest'.padEnd(VER_W))} ${ui.tableHeader('Status')}`
+      const divider = ui.dim(
+        '  ' + '-'.repeat(NAME_W + 1 + TYPE_W + 1 + VER_W + 1 + VER_W)
+      )
 
       console.log(ui.title('Status'))
 
@@ -45,17 +89,13 @@ export function registerStatusCommand(program: Command): void {
 
         for (const item of platformItems) {
           const latest = indexByKey.get(`${item.platform}::${item.name}`)
-          const namePad = item.name.padEnd(26)
-          const typePad = item.type.padEnd(14)
-          const instPad = item.version.padEnd(10)
           const latestVer = latest?.version ?? '—'
-          const latestPad = latestVer.padEnd(10)
           const status = !latest
             ? ui.warning('not in registry')
             : latest.version !== item.version
               ? ui.warning('outdated')
               : ui.success('up to date')
-          console.log(`  ${namePad} ${typePad} ${instPad} ${latestPad} ${status}`)
+          printStatusTableRow(item.name, item.type, item.version, latestVer, status)
         }
 
         console.log()
@@ -68,10 +108,13 @@ export function registerStatusCommand(program: Command): void {
         console.log(header)
         console.log(divider)
         for (const item of unknownItems) {
-          const namePad = item.name.padEnd(26)
-          const typePad = item.type.padEnd(14)
-          const instPad = item.version.padEnd(10)
-          console.log(`  ${namePad} ${typePad} ${instPad} ${'—'.padEnd(10)} ${ui.warning('not in registry')}`)
+          printStatusTableRow(
+            item.name,
+            item.type,
+            item.version,
+            '—'.padEnd(VER_W),
+            ui.warning('not in registry')
+          )
         }
         console.log()
       }

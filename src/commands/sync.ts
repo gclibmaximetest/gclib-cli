@@ -4,6 +4,7 @@ import { ui } from '../lib/ui.js'
 import { checkPrerequisites, getGithubToken } from '../lib/auth.js'
 import { fetchItems, fetchFile } from '../lib/registry.js'
 import { installItem } from '../lib/installer.js'
+import { installFromRegistryPath } from '../lib/registryInstall.js'
 import { readLockfile, upsertLockfileItem } from '../lib/lockfile.js'
 import type { Manifest } from '../types.js'
 
@@ -63,6 +64,35 @@ export function registerSyncCommand(program: Command): void {
 
       for (const item of outdated) {
         const latest = indexByKey.get(`${item.platform}::${item.name}`)!
+
+        if (latest.type === 'collection') {
+          for (const entryPath of latest.entries) {
+            const r = await installFromRegistryPath(
+              token,
+              cwd,
+              entryPath,
+              { cwd, conflictMode: 'overwrite' },
+              { collectionName: latest.name }
+            )
+            upsertLockfileItem(cwd, {
+              name: r.name,
+              type: r.type,
+              platform: r.platform,
+              version: r.version,
+              installedAt: new Date().toISOString(),
+            })
+          }
+          upsertLockfileItem(cwd, {
+            name: latest.name,
+            type: 'collection',
+            platform: 'collection',
+            version: latest.version,
+            installedAt: new Date().toISOString(),
+          })
+          console.log(ui.success(`Updated collection ${ui.bold(latest.name)} to ${latest.version}`))
+          continue
+        }
+
         const manifestPath = `${latest.path}/manifest.json`
         const manifestRaw = await fetchFile(token, manifestPath)
         const manifest = JSON.parse(manifestRaw) as Manifest

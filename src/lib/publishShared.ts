@@ -1,6 +1,17 @@
 import { existsSync, readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
-import type { ClaudeCodeItemType, GithubCopilotItemType, RegistryItemType, RegistryPlatform } from '../types.js'
+import type {
+  ClaudeCodeItemType,
+  CollectionManifest,
+  CollectionRawItem,
+  GithubCopilotItemType,
+  LockfilePlatform,
+  RawIndexItem,
+  RegistryIndex,
+  RegistryItemType,
+} from '../types.js'
+
+type PublishableItemType = Exclude<RegistryItemType, 'collection'>
 
 export const REGISTRY_REPO = 'gclibmaximetest/gclib-registry'
 
@@ -33,7 +44,7 @@ export const CLAUDECODE_TYPE_CONFIG: Record<ClaudeCodeItemType, TypeConfig> = {
   memory:  { folder: 'memory',   defaultFile: 'CLAUDE.md',  target: '.claude/',          localSourceDir: '.claude' },
 }
 
-export function getTypeConfig(platform: RegistryPlatform, type: RegistryItemType): TypeConfig {
+export function getTypeConfig(platform: LockfilePlatform, type: PublishableItemType): TypeConfig {
   if (platform === 'githubcopilot') {
     return GITHUBCOPILOT_TYPE_CONFIG[type as GithubCopilotItemType]
   }
@@ -41,7 +52,7 @@ export function getTypeConfig(platform: RegistryPlatform, type: RegistryItemType
 }
 
 /** Derive registry item name from a local source file path. */
-export function deriveNameFromPath(relativePath: string, platform: RegistryPlatform, type: RegistryItemType): string {
+export function deriveNameFromPath(relativePath: string, platform: LockfilePlatform, type: PublishableItemType): string {
   const parts = relativePath.split(/[/\\]/).filter(Boolean)
   if (type === 'skill') {
     const skillFolder = parts.find((_, i) => parts[i - 1] === 'skills')
@@ -60,7 +71,7 @@ export function deriveNameFromPath(relativePath: string, platform: RegistryPlatf
 }
 
 /** List selectable files from the local source directory for the given platform+type. */
-export function listLocalFiles(cwd: string, platform: RegistryPlatform, type: RegistryItemType): { value: string; name: string }[] {
+export function listLocalFiles(cwd: string, platform: LockfilePlatform, type: PublishableItemType): { value: string; name: string }[] {
   const config = getTypeConfig(platform, type)
   const dir = join(cwd, config.localSourceDir)
   if (!existsSync(dir)) return []
@@ -117,4 +128,82 @@ export function isHigherVersion(current: string, next: string): boolean {
 /** Returns true if the string matches x.x.x semver format (non-negative integers). */
 export function isValidSemver(v: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(v)
+}
+
+/** Index rows suitable for collection membership (Copilot + Claude items only; no nested collections). */
+export interface AuthorNonCollectionRow {
+  platform: LockfilePlatform
+  name: string
+  type: RawIndexItem['type']
+  path: string
+  description: string
+}
+
+/** Stable checkbox value for a row. */
+export function authorItemChoiceValue(row: AuthorNonCollectionRow): string {
+  return `${row.platform}::${row.name}`
+}
+
+/**
+ * Lists `githubcopilot` and `claudecode` index entries. When `username` is set, only rows that list
+ * them as an author; when null, returns all such rows (same idea as update without a logged-in user).
+ */
+export function getAuthorNonCollectionItems(
+  index: RegistryIndex,
+  username: string | null
+): AuthorNonCollectionRow[] {
+  const rows: AuthorNonCollectionRow[] = []
+  const push = (items: RawIndexItem[] | undefined, platform: LockfilePlatform) => {
+    for (const i of items ?? []) {
+      if (username && !i.authors.includes(username)) continue
+      rows.push({
+        platform,
+        name: i.name,
+        type: i.type,
+        path: i.path,
+        description: i.description,
+      })
+    }
+  }
+  push(index.githubcopilot, 'githubcopilot')
+  push(index.claudecode, 'claudecode')
+  return rows
+}
+
+export function buildCollectionRawItem(opts: {
+  name: string
+  description: string
+  tags: string[]
+  version: string
+  authors: string[]
+  entries: string[]
+}): CollectionRawItem {
+  return {
+    name: opts.name,
+    type: 'collection',
+    description: opts.description,
+    tags: opts.tags,
+    version: opts.version,
+    authors: opts.authors,
+    path: `collections/${opts.name}`,
+    entries: opts.entries,
+  }
+}
+
+/** Body written to `collections/<name>/manifest.json` (no `path`; implied by folder). */
+export function collectionRawItemToManifest(item: CollectionRawItem): CollectionManifest {
+  return {
+    name: item.name,
+    type: 'collection',
+    description: item.description,
+    tags: item.tags,
+    version: item.version,
+    authors: item.authors,
+    entries: item.entries,
+  }
+}
+
+export function collectionReadmeMarkdown(name: string, description: string): string {
+  const body = description.trim() ? `${description.trim()}\n` : 'Registry collection bundle.\n'
+  return `# ${name}\n\n${body}`
 }

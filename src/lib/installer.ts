@@ -26,13 +26,30 @@ function normalizeTarget(target: string): string {
   return target
 }
 
+/**
+ * Skills install under `<target>/<name>/`. Some manifests already put `name` in `target`
+ * (e.g. `.claude/skills/my-skill`), which would yield `.../my-skill/my-skill/` — drop that
+ * duplicate trailing segment when it matches `manifest.name`.
+ */
+function skillInstallBaseTarget(normalizedTarget: string, skillName: string): string {
+  const trimmed = normalizedTarget.replace(/[/\\]+$/, '')
+  const parts = trimmed.split(/[/\\]/).filter(Boolean)
+  if (parts.length < 2) return normalizedTarget
+  if (parts[parts.length - 1] !== skillName) return normalizedTarget
+  const parent = parts.slice(0, -1).join('/')
+  return `${parent}/`
+}
+
 export async function installItem(
   cwd: string,
   manifest: Manifest,
   fileContents: Map<string, string>,
   options: InstallOptions
 ): Promise<{ written: string[]; skipped: string[] }> {
-  const baseTarget = normalizeTarget(manifest.target)
+  let baseTarget = normalizeTarget(manifest.target)
+  if (manifest.type === 'skill') {
+    baseTarget = skillInstallBaseTarget(baseTarget, manifest.name)
+  }
   // Skills live in a named subfolder: <target>/<name>/SKILL.md
   const targetDir =
     manifest.type === 'skill'

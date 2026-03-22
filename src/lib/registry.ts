@@ -18,6 +18,7 @@ export async function fetchItems(token: string): Promise<IndexItem[]> {
 	const items: IndexItem[] = [
 		...(index.githubcopilot ?? []).map((i) => ({ ...i, platform: 'githubcopilot' as const })),
 		...(index.claudecode ?? []).map((i) => ({ ...i, platform: 'claudecode' as const })),
+		...(index.collections ?? []).map((i) => ({ ...i, platform: 'collection' as const })),
 	];
 	return items;
 }

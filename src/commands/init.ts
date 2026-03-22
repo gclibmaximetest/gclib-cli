@@ -2,15 +2,20 @@ import type { Command } from "commander";
 import { checkbox, select } from "@inquirer/prompts";
 import { ui } from "../lib/ui.js";
 import { checkPrerequisites, getGithubToken } from "../lib/auth.js";
-import { fetchItems, fetchFile } from "../lib/registry.js";
-import { installItem } from "../lib/installer.js";
+import { fetchItems } from "../lib/registry.js";
+import { installFromRegistryPath } from "../lib/registryInstall.js";
 import { readLockfile, writeLockfile } from "../lib/lockfile.js";
-import type { IndexItem, Manifest } from "../types.js";
+import type { IndexItem, LockfileItem, RegistryPlatform } from "../types.js";
+
+function mergeLockfileItem(items: LockfileItem[], next: LockfileItem): LockfileItem[] {
+	const existing = items.filter((i) => !(i.name === next.name && i.platform === next.platform));
+	return [...existing, next];
+}
 
 export function registerInitCommand(program: Command): void {
 	program
 		.command("init")
-		.description("Interactively pick and install agents, skills, and instructions from the registry")
+		.description("Interactively pick and install agents, skills, instructions, and collections from the registry")
 		.action(async () => {
 			checkPrerequisites();
 			const token = getGithubToken();
@@ -25,10 +30,10 @@ export function registerInitCommand(program: Command): void {
 				return;
 			}
 
-		const choices = index.map((i) => ({
-        name: `${i.name} ${ui.dim(`(${i.platform}/${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ""}`.trim(),
-        value: `${i.platform}::${i.name}`,
-      }));
+			const choices = index.map((i) => ({
+				name: `${i.name} ${ui.dim(`(${i.platform}/${i.type})`)} ${i.description ? ui.dim(`— ${i.description}`) : ""}`.trim(),
+				value: `${i.platform}::${i.name}`,
+			}));
 
 			let selected: string[];
 			try {
@@ -48,58 +53,80 @@ export function registerInitCommand(program: Command): void {
 			}
 
 			const existingLock = readLockfile(cwd);
-			const lockfile = existingLock ?? { version: "1", items: [] };
+			let lockfile = existingLock ?? { version: "1", items: [] };
 
-		for (const key of selected) {
-        const [platform, name] = key.split('::') as [string, string]
-        const item = index.find((i) => i.platform === platform && i.name === name) as IndexItem;
-				const manifestPath = `${item.path}/manifest.json`;
-				const manifestRaw = await fetchFile(token, manifestPath);
-				const manifest = JSON.parse(manifestRaw) as Manifest;
+			const conflictOptions = {
+				cwd,
+				onConflict: async (filePath: string) => {
+					try {
+						const action = await select({
+							message: `File exists: ${ui.path(filePath)}`,
+							choices: [
+								{ value: "overwrite", name: "Overwrite" },
+								{ value: "skip", name: "Skip" },
+								{ value: "merge", name: "Merge (append below separator)" },
+							],
+						});
+						return action as "overwrite" | "skip" | "merge";
+					} catch {
+						return "skip";
+					}
+				},
+			};
 
-				const fileContents = new Map<string, string>();
-				for (const file of manifest.files) {
-					const content = await fetchFile(token, `${item.path}/${file}`);
-					fileContents.set(file, content);
-				}
+			let installedCount = 0;
 
-				const { written, skipped } = await installItem(cwd, manifest, fileContents, {
-					cwd,
-					onConflict: async (filePath) => {
-						try {
-							const action = await select({
-								message: `File exists: ${ui.path(filePath)}`,
-								choices: [
-									{ value: "overwrite", name: "Overwrite" },
-									{ value: "skip", name: "Skip" },
-									{ value: "merge", name: "Merge (append below separator)" },
-								],
-							});
-							return action as "overwrite" | "skip" | "merge";
-						} catch {
-							return "skip";
-						}
-					},
+			const recordInstall = (result: {
+				written: string[];
+				skipped: string[];
+				name: string;
+				type: LockfileItem["type"];
+				platform: RegistryPlatform;
+				version: string;
+			}) => {
+				if (!result.written.length && !result.skipped.length) return;
+				installedCount += 1;
+				lockfile.items = mergeLockfileItem(lockfile.items, {
+					name: result.name,
+					type: result.type,
+					platform: result.platform,
+					version: result.version,
+					installedAt: new Date().toISOString(),
 				});
+			};
 
-			if (written.length || skipped.length) {
-				const existing = lockfile.items.filter(
-					(i) => !(i.name === item.name && i.platform === item.platform)
-				);
-				lockfile.items = [
-					...existing,
-					{
-						name: item.name,
-						type: item.type,
-						platform: item.platform,
-						version: item.version,
-						installedAt: new Date().toISOString(),
-					},
-				];
-			}
+			for (const key of selected) {
+				const sep = key.indexOf("::");
+				const platformKey = sep === -1 ? key : key.slice(0, sep);
+				const name = sep === -1 ? "" : key.slice(sep + 2);
+				const item = index.find((i) => i.platform === platformKey && i.name === name) as IndexItem | undefined;
+				if (!item) continue;
+
+				if (item.type === "collection") {
+					let anyCollectionMember = false;
+					for (const entryPath of item.entries) {
+						const result = await installFromRegistryPath(token, cwd, entryPath, conflictOptions, {
+							collectionName: item.name,
+						});
+						recordInstall(result);
+						if (result.written.length || result.skipped.length) anyCollectionMember = true;
+					}
+					if (anyCollectionMember) {
+						lockfile.items = mergeLockfileItem(lockfile.items, {
+							name: item.name,
+							type: "collection",
+							platform: "collection",
+							version: item.version,
+							installedAt: new Date().toISOString(),
+						});
+					}
+				} else {
+					const result = await installFromRegistryPath(token, cwd, item.path, conflictOptions);
+					recordInstall(result);
+				}
 			}
 
 			writeLockfile(cwd, lockfile);
-			console.log(ui.outro(`Installed ${selected.length} item(s).`));
+			console.log(ui.outro(`Installed ${installedCount} item(s).`));
 		});
 }
